@@ -37,7 +37,7 @@ htmlcov/
 Thumbs.db
 
 # Project-specific
-data/
+data/output/
 
 # Evaluation materials and leftovers (not part of the submission)
 *.zip

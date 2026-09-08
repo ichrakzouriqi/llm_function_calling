@@ -1,6 +1,6 @@
-# call me maybe
+*This project has been created as part of the 42 curriculum by izouriqi.*
 
-*42 project — by izouriqi*
+# call me maybe
 
 > **Function calling for small LLMs using constrained decoding.**
 > Given a plain-English question, produce the exact function call that would answer it — right name, right arguments, right types — every single time.
