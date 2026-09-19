@@ -23,6 +23,7 @@ Public surface used here from the SDK:
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from typing import Any, Callable
@@ -73,14 +74,18 @@ def _number_ok(piece: str, allow_fraction: bool, end: str) -> bool:
     if not piece:
         return True
 
+    if piece.count(end) > 1 or (end in piece and not piece.endswith(end)):
+        return False
+
     if end in piece:
-        # The end marker appeared – the part before it must be a complete number.
+        # The end marker appeared – the part before it must be a
+        # complete number.
         number_part = piece[: piece.index(end)]
         if not number_part:
             return False  # empty is not a number
         if allow_fraction:
             # Complete float: optional minus, integer part, optional decimal.
-            pattern = r"-?(?:0|[1-9]\d*)(?:\.\d+)?"
+            pattern = r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"
         else:
             # Complete integer: optional minus, no dot.
             pattern = r"-?(?:0|[1-9]\d*)"
@@ -89,7 +94,7 @@ def _number_ok(piece: str, allow_fraction: bool, end: str) -> bool:
         # No end marker yet – piece must be a valid *prefix* of a number.
         if allow_fraction:
             # Prefix can end in a dot (waiting for the decimal digits).
-            pattern = r"-?(?:0|[1-9]\d*)(?:\.(?:\d+)?)?"
+            pattern = r"-?(?:0|[1-9]\d*)(?:\.(?:\d+)?)?(?:[eE][+-]?\d*)?"
         else:
             pattern = r"-?(?:0|[1-9]\d*)"
         # Also allow a leading minus sign alone (e.g. still typing "-3").
@@ -110,8 +115,9 @@ def _string_close(piece: str) -> int:
        -2         : impossible – bad escape sequence detected
 
     Allowed escape sequences: \\\\ \\" \\/ \\b \\f \\n \\r \\t
-    \\uXXXX is intentionally rejected (the prompts are ASCII; we don't
-    need it and it complicates boundary detection).
+    \\uXXXX is also supported and validated (must be followed by exactly
+    four hex digits); an incomplete or malformed \\u escape keeps the
+    string open (-1) or is rejected (-2) respectively.
 
     Examples:
       _string_close('"')            -> -1   (just the opening quote)
@@ -119,11 +125,11 @@ def _string_close(piece: str) -> int:
       _string_close('"hello"')      -> 6    (closes at index 6)
       _string_close('"a\\\\nb"')    -> 5    (valid \\n escape, closes)
       _string_close('"a\\\\xb"')    -> -2   (\\x is not a valid escape)
-      _string_close('"a\\\\u0041"') -> -2   (\\u intentionally disallowed)
+      _string_close('"a\\\\u0041"') -> 8    (valid \\u escape, closes)
       _string_close('"a", "b": ')  -> 2    (closes at 2, rest ignored)
     """
     # Valid single-char escapes after the backslash.
-    valid_escapes: set[str] = set('\\"/ bfnrt')
+    valid_escapes: set[str] = set('\\"/bfnrt')
 
     i = 1  # skip the opening quote at index 0
     while i < len(piece):
@@ -134,12 +140,23 @@ def _string_close(piece: str) -> int:
                 return -1
             next_ch = piece[i + 1]
             if next_ch == "u":
-                return -2  # \uXXXX intentionally disallowed
+                unicode_end = i + 6
+                if unicode_end > len(piece):
+                    return -1
+                hex_digits = piece[i + 2:unicode_end]
+                if not all(
+                    ch in "0123456789abcdefABCDEF" for ch in hex_digits
+                ):
+                    return -2
+                i = unicode_end
+                continue
             if next_ch not in valid_escapes:
                 return -2  # unknown escape
             i += 2  # skip backslash + escape character
         elif ch == '"':
             return i  # found the closing quote
+        elif ord(ch) < 0x20:
+            return -2
         else:
             i += 1  # ordinary character
 
@@ -167,7 +184,8 @@ def build_prompt(prompt: str, functions: list[FunctionDefinition]) -> str:
     ]
     for fn in functions:
         params_desc = ", ".join(
-            f"{pname}: {pspec.type}" for pname, pspec in fn.parameters.items()
+            f"{pname}: {pspec.type}"
+            for pname, pspec in fn.parameters.items()
         )
         lines.append(f"  - {fn.name}({params_desc}): {fn.description}")
 
@@ -273,9 +291,8 @@ class ConstrainedDecoder:
             close_idx = _string_close(piece)
             if close_idx >= 0:
                 # We have the closing quote; extract content and JSON repr.
-                python_value = piece[1:close_idx]          # strip both quotes
                 json_repr = piece[: close_idx + 1]         # keep both quotes
-                return python_value, json_repr
+                return json.loads(json_repr), json_repr
 
             def allowed(t: str, p: str = piece) -> bool:
                 return _string_close(p + t) != -2
@@ -358,8 +375,14 @@ class ConstrainedDecoder:
           4. Wrap everything in a FunctionCall object.
         """
         context = build_prompt(prompt, functions)
-        by_name: dict[str, FunctionDefinition] = {fn.name: fn for fn in functions}
+        by_name: dict[str, FunctionDefinition] = {
+            fn.name: fn for fn in functions
+        }
         fn_names: list[str] = list(by_name.keys())
+        if not fn_names:
+            raise DecodeError(
+                "cannot decode a prompt without available functions"
+            )
 
         # ── Step 1: choose the function name ──────────────────────────
         # We write the fixed prefix  {"name": "  and let the model spell
@@ -405,6 +428,11 @@ def decode_all(
     is printed to stderr and a placeholder entry is emitted so the output
     list stays aligned with the input list — the run never crashes.
     """
+    if not prompts:
+        return []
+    if not functions:
+        raise ValueError("cannot decode prompts without available functions")
+
     decoder = ConstrainedDecoder(model)
     results: list[FunctionCall] = []
     total = len(prompts)

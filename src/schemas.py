@@ -8,9 +8,12 @@ Two models:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+
+JSONType = Literal["string", "number", "integer", "boolean"]
 
 
 # ---------------------------------------------------------------------------
@@ -20,13 +23,17 @@ from pydantic import BaseModel
 class ParameterSpec(BaseModel):
     """Schema for a single parameter: just its JSON type."""
 
-    type: str  # "string" | "number" | "integer" | "boolean"
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    type: JSONType
 
 
 class ReturnSpec(BaseModel):
     """Schema for the return type (we store it but never decode it)."""
 
-    type: str
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    type: JSONType
 
 
 class FunctionDefinition(BaseModel):
@@ -42,6 +49,8 @@ class FunctionDefinition(BaseModel):
         }
     """
 
+    model_config = ConfigDict(strict=True, extra="forbid")
+
     name: str
     description: str
     parameters: dict[str, ParameterSpec]
@@ -54,7 +63,9 @@ class FunctionDefinition(BaseModel):
         Python dicts preserve insertion order (3.7+), so the order matches
         the JSON file — which is what the grader expects.
         """
-        return [(pname, pspec.type) for pname, pspec in self.parameters.items()]
+        return [
+            (pname, pspec.type) for pname, pspec in self.parameters.items()
+        ]
 
 
 # ---------------------------------------------------------------------------

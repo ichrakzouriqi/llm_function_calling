@@ -1,5 +1,6 @@
 """
-tokenizer.py – Custom vocabulary loader for byte-level BPE models (GPT-2 / Qwen3).
+tokenizer.py – Custom vocabulary loader for byte-level BPE models
+(GPT-2 / Qwen3).
 
 Why do we need this?
     The model's vocab.json stores tokens as *Unicode-escaped* strings, not as
@@ -9,10 +10,11 @@ Why do we need this?
     here and build a direct  id -> text  dictionary.
 
 Byte-level BPE encoding (GPT-2 convention):
-    Every byte value 0-255 is mapped to a unique printable Unicode character so
-    that the vocabulary file never contains raw control bytes.  The mapping is:
-      - Printable ASCII bytes (33-126) and a few extra (161-172, 174-255) map to
-        themselves (same code point).
+    Every byte value 0-255 is mapped to a unique printable Unicode
+    character so that the vocabulary file never contains raw control
+    bytes.  The mapping is:
+      - Printable ASCII bytes (33-126) and a few extra (161-172,
+        174-255) map to themselves (same code point).
       - The remaining bytes (0-32, 127-160, 173) map to code points 256, 257, …
         in the order they appear.
 
@@ -40,7 +42,8 @@ def _bytes_to_unicode() -> dict[int, str]:
     All other byte values map to code points starting at U+0100 (256), in
     the order they appear in the range 0-255.
     """
-    # Bytes that are already printable — they map to the same Unicode code point.
+    # Bytes that are already printable — they map to the same Unicode
+    # code point.
     printable: list[int] = (
         list(range(ord("!"), ord("~") + 1))   # 33-126  (ASCII printable)
         + list(range(ord("¡"), ord("¬") + 1))  # 161-172 (Latin-1 printable)
@@ -101,9 +104,10 @@ class Vocabulary:
                 # KeyError  : character not in our mapping (should not happen
                 #             for a well-formed vocab, but skip to be safe).
                 # UnicodeDecodeError : the bytes do not form valid UTF-8 on
-                #             their own (e.g. a partial multi-byte sequence).
-                #             Such tokens are never needed for ASCII JSON output
-                #             so we simply omit them.
+                #             their own (e.g. a partial multi-byte
+                #             sequence).  Such tokens are never needed
+                #             for ASCII JSON output so we simply omit
+                #             them.
                 pass
 
     def decode(self, token_ids: list[int]) -> str:

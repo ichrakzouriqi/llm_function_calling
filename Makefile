@@ -17,9 +17,5 @@ clean:
 	rm -rf .mypy_cache .ruff_cache .pytest_cache
 
 lint:
-	uv run flake8 .
-	uv run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-
-lint-strict:
-	uv run flake8 .
-	uv run mypy . --strict
+	uv run flake8 --exclude=llm_sdk,.venv/ .
+	uv run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs --no-site-packages

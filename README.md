@@ -61,9 +61,6 @@ call-me-maybe/
 │   ├── schemas.py        # Pydantic models for input/output validation
 │   ├── tokenizer.py      # custom byte-level BPE vocabulary loader
 │   └── decoder.py        # constrained decoding engine
-├── tests/
-│   ├── test_decoder.py   # unit tests for number/string rules + mock model
-│   └── test_tokenizer.py # unit tests for byte-level decoding
 ├── llm_sdk/              # provided SDK (read-only, wraps Qwen3-0.6B)
 ├── data/
 │   └── input/            # example function definitions + test prompts
@@ -93,7 +90,8 @@ A list of callable functions, each with a name, description, typed parameters, a
 ]
 ```
 
-Supported types: `string`, `number` (float), `integer`, `boolean`.
+Supported types: `string`, `number` (float), `integer`, `boolean`. Other types
+are rejected while loading the function definitions.
 
 ### Input 2 — `function_calling_tests.json`
 
@@ -163,7 +161,7 @@ Checks whether the accumulated text is still on track to form a valid JSON numbe
 Scans a JSON string from its opening quote to find where it closes:
 - Returns the index of the closing quote if found
 - Returns `-1` if the string is still open (valid prefix)
-- Returns `-2` if an invalid escape sequence is detected (`\x`, `\u` are disallowed)
+- Returns `-2` if an invalid escape sequence is detected (`\x`, malformed `\u`)
 
 #### `ConstrainedDecoder._best(context, allowed)`
 
